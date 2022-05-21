@@ -1,2 +1,2 @@
-# ncmt
-NCurses MikroTik - A utility for MikroTik Routers
+# gomt
+Go MikroTik - A utility for MikroTik Routers
