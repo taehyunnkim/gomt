@@ -8,15 +8,27 @@ import (
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/go-routeros/routeros"
 	"golang.org/x/term"
 )
 
+var (
+	version string = "v0.1.1"
+)
+
 type model struct {
+	deviceInfo string
 	client *routeros.Client
 	sub chan dataMessage
 	data *dataMessage
-	cpuData map[int] string
+	cpu cpuData
+}
+
+type cpuData struct {
+	count int
+	bar map[int] progress.Model
+	data map[int] float64
 }
 
 type dataMessage struct {
@@ -33,7 +45,7 @@ func fetchData(c *routeros.Client, sub chan dataMessage) tea.Cmd {
 	return func() tea.Msg {
 		for {
 			time.Sleep(time.Second)
-
+			
 			reply, err := c.RunArgs([]string{"/system/resource/print"})
 			resourceData := data{reply, err}
 
@@ -42,7 +54,7 @@ func fetchData(c *routeros.Client, sub chan dataMessage) tea.Cmd {
 
 
 			sub <- dataMessage{
-				resourceData, 
+				resourceData,
 				cpuData,
 			}
 		}
@@ -85,25 +97,11 @@ func (m model) View() string {
 	if m.data == nil {
 		result = "Fetching data...\n"
 	} else {
-		var cpuCount int
+		result += m.deviceInfo + "\n"
 
-		if m.data.resourceData.err != nil {
-			result = fmt.Sprintf(
-				"A problem has occured :(\n" +
-				"%s\n",
-				m.data.resourceData.err,	
-			)
-		} else {
-			for _, message := range m.data.resourceData.reply.Re {
-				for _, pair := range message.List {
-					result += fmt.Sprintf("%s: %s\n", pair.Key, pair.Value)
-
-					if pair.Key == "cpu-count" {
-						cpuCount, _ = strconv.Atoi(pair.Value)
-					}
-				}
-			}
-		}
+		for _, message := range m.data.resourceData.reply.Re {
+			result += fmt.Sprintf("uptime: %s\n", message.Map["uptime"])
+		}	
 
 		result += "\n===== CPU =====\n"
 
@@ -114,42 +112,37 @@ func (m model) View() string {
 				m.data.cpuData.err,	
 			)
 		} else {
-			parseCpuData(m.data.cpuData, &m.cpuData)
-			for i := 0; i < cpuCount; i++ {
-				result += fmt.Sprintf("cpu-%d: %s%%\n", i+1, m.cpuData[i])	
+			parseCpuData(m.data.cpuData, &m.cpu.data)
+			for i := 0; i < m.cpu.count; i++ {
+				result += fmt.Sprintf("cpu-%d: ", i+1) + 
+					m.cpu.bar[i].ViewAs(m.cpu.data[i]) + "\n"
 			}
 		}
 	}
 
 	return fmt.Sprintf(
-		"The program is running\n\n" +
 		"%s\n" +
 		"Press q to exit...",
 		result,	
 	)
 }
 
-func parseCpuData(data data, m *map[int] string) {
+func parseCpuData(data data, m *map[int] float64) {
 	for _, message := range data.reply.Re {
 		var cpu int
+		_, err := fmt.Sscanf(message.Map[".id"], "*%d", &cpu)
 
-		for _, pair := range message.List {
-			if pair.Key == ".id" {
-				_, err := fmt.Sscanf(pair.Value, "*%d", &cpu)
-
-				if err != nil {
-					log.Println(pair.Value)
-					log.Fatal(err)	
-				}
-			} else if pair.Key == "load" {
-				(*m)[cpu] = pair.Value
-			}
+		if err != nil {
+			log.Fatal(err)	
 		}
+
+		value, _ := strconv.ParseFloat(message.Map["load"], 64)
+		(*m)[cpu] = value / 100
 	}
 }
 
 func main() {
-	fmt.Println("ncmt v0.1.0")
+	fmt.Println("gomt", version)
 
 	var address string
 	fmt.Print("Enter the full address: ")
@@ -161,6 +154,7 @@ func main() {
 
 	fmt.Print("Enter the password: ")
 	password, _ := term.ReadPassword(int(syscall.Stdin))
+	fmt.Println()
 
 	client, err := routeros.Dial(address, user, string(password))
 
@@ -171,14 +165,42 @@ func main() {
 
 	defer client.Close()
 
-	p := tea.NewProgram(model{
-		client: client,
-		sub: make(chan dataMessage),
-		data: nil,
-		cpuData: make(map[int]string),
-	})
+	reply, err := client.RunArgs([]string{"/system/resource/print"})
 
-	if err := p.Start(); err != nil {
+	if err != nil {
 		log.Fatal(err)
+	}
+
+	if len(reply.Re) > 0 {
+		platform := reply.Re[0].Map["platform"]
+		boardName := reply.Re[0].Map["board-name"]
+		osVersion := reply.Re[0].Map["version"]
+		cpuCoreCount, _ := strconv.Atoi(reply.Re[0].Map["cpu-count"])
+
+		deviceInfo := fmt.Sprintf("%s %s | RouterOs %s | %s | %s\n", platform, boardName, osVersion, address, user)
+
+		bars := make(map[int] progress.Model)
+
+		for i := 0; i < cpuCoreCount; i++ {
+			bars[i] = progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+		}
+
+		p := tea.NewProgram(model{
+			deviceInfo: deviceInfo,
+			client: client,
+			sub: make(chan dataMessage),
+			data: nil,
+			cpu: cpuData{
+				count: cpuCoreCount,
+				bar: bars,
+				data: make(map[int] float64),
+			},
+		}, tea.WithAltScreen())
+
+		if err := p.Start(); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Fatal("Error fetching data...")
 	}
 }
