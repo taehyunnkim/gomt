@@ -5,46 +5,59 @@ import (
 	"log"
 	"syscall"
 	"time"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-routeros/routeros"
-	"github.com/go-routeros/routeros/proto"
 	"golang.org/x/term"
 )
 
 type model struct {
 	client *routeros.Client
-	sub chan fetchMessage
-	clientMessage *routeros.Reply
-	err error
+	sub chan dataMessage
+	data *dataMessage
+	cpuData map[int] string
 }
 
-type errMsg struct{ error }
+type dataMessage struct {
+	resourceData data
+	cpuData data 
+}
 
-type fetchMessage struct {
+type data struct {
 	reply *routeros.Reply
 	err error
 }
 
-func fetchResourceInfo(c *routeros.Client, sub chan fetchMessage) tea.Cmd {
+func fetchData(c *routeros.Client, sub chan dataMessage) tea.Cmd {
 	return func() tea.Msg {
 		for {
 			time.Sleep(time.Second)
+
 			reply, err := c.RunArgs([]string{"/system/resource/print"})
-			sub <- fetchMessage{reply, err}
+			resourceData := data{reply, err}
+
+			reply2, err2 := c.RunArgs([]string{"/system/resource/cpu/print"})
+			cpuData := data{reply2, err2}
+
+
+			sub <- dataMessage{
+				resourceData, 
+				cpuData,
+			}
 		}
 	}
 }
 
-func waitForMessage(sub chan fetchMessage) tea.Cmd {
+func waitForMessage(sub chan dataMessage) tea.Cmd {
 	return func() tea.Msg {
-		return fetchMessage(<-sub)
+		return dataMessage(<-sub)
 	}
 }
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
-		fetchResourceInfo(m.client, m.sub),
+		fetchData(m.client, m.sub),
 		waitForMessage(m.sub),
 	)
 }
@@ -58,42 +71,81 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
-	case fetchMessage:
-		m.clientMessage = message.reply
-		m.err = message.err
+	case dataMessage:
+		m.data = &message
 		return m, waitForMessage(m.sub)
-	case errMsg:
-		m.err = message
-		return m, tea.Quit
 	}
 
 	return m, nil
 }
 
 func (m model) View() string {
-	if m.err != nil {
-		return fmt.Sprintf(
-			"A problem has occured :(\n" +
-			"%s\n",
-			m.err,	
-		)
-	}
-
 	var result string
 
-	for _, message := range m.clientMessage.Re {
-		for _, pair := range message.List {
-			result += fmt.Sprintf("%s: %s\n", pair.Key, pair.Value)
+	if m.data == nil {
+		result = "Fetching data...\n"
+	} else {
+		var cpuCount int
+
+		if m.data.resourceData.err != nil {
+			result = fmt.Sprintf(
+				"A problem has occured :(\n" +
+				"%s\n",
+				m.data.resourceData.err,	
+			)
+		} else {
+			for _, message := range m.data.resourceData.reply.Re {
+				for _, pair := range message.List {
+					result += fmt.Sprintf("%s: %s\n", pair.Key, pair.Value)
+
+					if pair.Key == "cpu-count" {
+						cpuCount, _ = strconv.Atoi(pair.Value)
+					}
+				}
+			}
+		}
+
+		result += "\n===== CPU =====\n"
+
+		if m.data.cpuData.err != nil {
+			result = fmt.Sprintf(
+				"A problem has occured :(\n" +
+				"%s\n",
+				m.data.cpuData.err,	
+			)
+		} else {
+			parseCpuData(m.data.cpuData, &m.cpuData)
+			for i := 0; i < cpuCount; i++ {
+				result += fmt.Sprintf("cpu-%d: %s%%\n", i+1, m.cpuData[i])	
+			}
 		}
 	}
 
 	return fmt.Sprintf(
-		"The program is running\n" +
+		"The program is running\n\n" +
 		"%s\n" +
 		"Press q to exit...",
 		result,	
 	)
+}
 
+func parseCpuData(data data, m *map[int] string) {
+	for _, message := range data.reply.Re {
+		var cpu int
+
+		for _, pair := range message.List {
+			if pair.Key == ".id" {
+				_, err := fmt.Sscanf(pair.Value, "*%d", &cpu)
+
+				if err != nil {
+					log.Println(pair.Value)
+					log.Fatal(err)	
+				}
+			} else if pair.Key == "load" {
+				(*m)[cpu] = pair.Value
+			}
+		}
+	}
 }
 
 func main() {
@@ -120,12 +172,10 @@ func main() {
 	defer client.Close()
 
 	p := tea.NewProgram(model{
-		client,
-		make(chan fetchMessage),
-		&routeros.Reply{
-			Re: []*proto.Sentence{proto.NewSentence()},
-		},
-		nil,
+		client: client,
+		sub: make(chan dataMessage),
+		data: nil,
+		cpuData: make(map[int]string),
 	})
 
 	if err := p.Start(); err != nil {
