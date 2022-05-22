@@ -1,54 +1,52 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"syscall"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-routeros/routeros"
+	"github.com/go-routeros/routeros/proto"
 	"golang.org/x/term"
-	"syscall"
-	"log"
-	"fmt"
 )
 
 type model struct {
-	address string
-	user string
-	password string
-	clientMessage string
+	client *routeros.Client
+	sub chan fetchMessage
+	clientMessage *routeros.Reply
 	err error
 }
 
-type clientMessage string
-
 type errMsg struct{ error }
 
-func dial(m model) (*routeros.Client, error) {
-	return routeros.Dial(m.address, m.user, m.password)	
+type fetchMessage struct {
+	reply *routeros.Reply
+	err error
 }
 
-func getClientMessage(m model) tea.Msg {
-	client, err := dial(m)
-
-	if err!= nil {
-		return errMsg{err}
+func fetchResourceInfo(c *routeros.Client, sub chan fetchMessage) tea.Cmd {
+	return func() tea.Msg {
+		for {
+			time.Sleep(time.Second)
+			reply, err := c.RunArgs([]string{"/system/resource/print"})
+			sub <- fetchMessage{reply, err}
+		}
 	}
+}
 
-	defer client.Close()
-
-	r, err := client.RunArgs([]string{"/interface/print"})
-
-	if err != nil {
-		return errMsg{err}
+func waitForMessage(sub chan fetchMessage) tea.Cmd {
+	return func() tea.Msg {
+		return fetchMessage(<-sub)
 	}
-
-	return clientMessage(r.String())
 }
 
 func (m model) Init() tea.Cmd {
-	startClient := func() tea.Msg {
-		return getClientMessage(m)
-	} 
-
-	return startClient
+	return tea.Batch(
+		fetchResourceInfo(m.client, m.sub),
+		waitForMessage(m.sub),
+	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -60,9 +58,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
-	case clientMessage:
-		m.clientMessage = string(message)
-		return m, nil
+	case fetchMessage:
+		m.clientMessage = message.reply
+		m.err = message.err
+		return m, waitForMessage(m.sub)
 	case errMsg:
 		m.err = message
 		return m, tea.Quit
@@ -80,15 +79,22 @@ func (m model) View() string {
 		)
 	}
 
+	var result string
+
+	for _, message := range m.clientMessage.Re {
+		for _, pair := range message.List {
+			result += fmt.Sprintf("%s: %s\n", pair.Key, pair.Value)
+		}
+	}
+
 	return fmt.Sprintf(
-		"The program is running(\n" +
+		"The program is running\n" +
 		"%s\n" +
 		"Press q to exit...",
-		m.clientMessage,	
+		result,	
 	)
 
 }
-
 
 func main() {
 	fmt.Println("ncmt v0.1.0")
@@ -104,11 +110,21 @@ func main() {
 	fmt.Print("Enter the password: ")
 	password, _ := term.ReadPassword(int(syscall.Stdin))
 
+	client, err := routeros.Dial(address, user, string(password))
+
+	if err!= nil {
+		log.Fatal(err)
+		return
+	}
+
+	defer client.Close()
+
 	p := tea.NewProgram(model{
-		address,
-		user,
-		string(password),
-		"Fetching data...",
+		client,
+		make(chan fetchMessage),
+		&routeros.Reply{
+			Re: []*proto.Sentence{proto.NewSentence()},
+		},
 		nil,
 	})
 
