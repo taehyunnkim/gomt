@@ -1,4 +1,4 @@
-module github.com/taehyunnkim/ncmt
+module github.com/taehyunnkim/gomt
 
 go 1.17
 

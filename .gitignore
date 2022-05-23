@@ -1,3 +1,8 @@
-v0.1.0
-   - User input for Mikrotik api access
-   - Simple UI with bubbletea
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
