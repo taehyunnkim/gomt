@@ -8,10 +8,11 @@ import (
 	"strconv"
 
 	"github.com/taehyunnkim/gomt/internal/tui"
+	"github.com/taehyunnkim/gomt/internal/net"
+	"github.com/taehyunnkim/gomt/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/go-routeros/routeros"
 	"golang.org/x/term"
 )
 
@@ -21,36 +22,46 @@ var name string = `
 | (_ / _ \ |\/| | | / / '_/ _ \| | | | / /
  \___\___/_|  |_|_|_\_\_| \___/|_| |_|_\_\`
 
-var version string = "0.1.2"
+var version string = "0.1.3"
 
 var rootCmd = &cobra.Command{
-	Use:     "gomt [IP Address]",
+	Use:     "gomt [IP ADDRESS] [FLAGS]",
 	Short:   "Go MikroTik is a console monitor application for MikroTik devices",
 	Version: version,
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) < 1 {
-			log.Fatal("Please enter the MikroTik device's IP")
-		}
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+		fmt.Printf("%s v%s\n\n", name, version)
+		
+		var address string
 
-		address := args[0]
+		if len(args) < 1 {
+			fmt.Print("Enter the IP Address: ")
+			fmt.Scanf("%s ", &address)
+		} else {
+			address = args[0]
+		}
 
 		port, err := cmd.Flags().GetString("port")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Printf("%s v%s\n\n", name, version)
+		rwc, err := net.Dial(address + ":" + port, config.Timeout)
+
+		if err != nil {
+			log.Fatal(err)	
+		}
 
 		var user string
-		fmt.Print("Enter the user: ")
-		fmt.Scanf("%s", &user)
+		fmt.Print("Enter the username: ")
+		fmt.Scanf("%s ", &user)
 
 		fmt.Print("Enter the password: ")
 		password, _ := term.ReadPassword(int(syscall.Stdin))
 		fmt.Println()
 
-		client, err := routeros.Dial(address + ":" + port, user, string(password))
+		client, err := net.NewClientAndLogin(rwc, user, string(password))
 
 		if err!= nil {
 			log.Fatal(err)
