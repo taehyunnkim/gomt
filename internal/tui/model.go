@@ -33,7 +33,7 @@ func New(client *routeros.Client, deviceInfo string, cpuCoreCount int) MtModel {
 	bars := make(map[int] progress.Model)
 
 	for i := 0; i < cpuCoreCount; i++ {
-		bars[i] = progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"))
+		bars[i] = progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"), progress.WithWidth(20))
 	}
 
 	return MtModel {
