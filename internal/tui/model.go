@@ -11,6 +11,8 @@ type MtModel struct {
 	sub chan dataMessage
 	data *dataMessage
 	cpu cpuData
+	height int
+	width int
 }
 
 type cpuData struct {

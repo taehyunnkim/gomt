@@ -10,6 +10,12 @@ var (
 	padding int = 1
 )
 
+var appStyle = lipgloss.NewStyle().
+	PaddingTop(padding).
+	PaddingBottom(padding).
+	PaddingLeft(padding).
+	PaddingRight(padding)
+
 var boxHeaderStyle = lipgloss.NewStyle().
 	Bold(true).
 	BorderStyle(lipgloss.RoundedBorder()).
@@ -22,7 +28,7 @@ var boxHeaderStyle = lipgloss.NewStyle().
 	PaddingLeft(padding).
 	PaddingRight(padding)
 
-var box = lipgloss.NewStyle().
+var borderedBoxStyle = lipgloss.NewStyle().
 	Bold(true).
 	BorderStyle(lipgloss.RoundedBorder()).
 	BorderForeground(lipgloss.Color("#FAFAFA")).
@@ -36,7 +42,7 @@ func createResourceRendering(m MtModel) string {
 	var resourceRendering string
 
 	if m.data.cpuData.err != nil {
-		resourceRendering = box.Render(fmt.Sprintf(
+		resourceRendering = borderedBoxStyle.Render(fmt.Sprintf(
 				"A problem has occured :(\n" +
 				"%s\n",
 				m.data.cpuData.err,	
@@ -52,7 +58,7 @@ func createResourceRendering(m MtModel) string {
 			}
 		}
 
-		resourceRendering = box.Render(cpuCoreInfo)
+		resourceRendering = borderedBoxStyle.Render(cpuCoreInfo)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("Resources"), resourceRendering)
@@ -73,9 +79,12 @@ func (m MtModel) View() string {
 		rendering += createResourceRendering(m)
 	}
 
-	return fmt.Sprintf(
-		"%s\n" +
+	appStyle.Height(m.height)
+	appStyle.Width(m.width)
+
+	return appStyle.Render(fmt.Sprintf(
+		"%s\n\n" +
 		"Press q to exit...",
-		rendering,	
-	)
+		rendering,
+	))
 }

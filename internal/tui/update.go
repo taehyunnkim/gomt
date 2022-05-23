@@ -53,6 +53,9 @@ func parseCpuData(data data, m *map[int] float64) {
 
 func (m MtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = message.Width
+		m.height = message.Height
 	case tea.KeyMsg:
 		switch message.String() {
 		case "q", "ctrl+c":
