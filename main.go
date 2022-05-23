@@ -15,10 +15,18 @@ import (
 	"golang.org/x/term"
 )
 
+var name string = `
+  ___     __  __ _ _          _____ _ _   
+ / __|___|  \/  (_) |___ _ __|_   _(_) |__
+| (_ / _ \ |\/| | | / / '_/ _ \| | | | / /
+ \___\___/_|  |_|_|_\_\_| \___/|_| |_|_\_\`
+
+var version string = "0.1.2"
+
 var rootCmd = &cobra.Command{
 	Use:     "gomt [IP Address]",
 	Short:   "Go MikroTik is a console monitor application for MikroTik devices",
-	Version: "0.1.2",
+	Version: version,
 	Args:    cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 1 {
@@ -31,6 +39,8 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		fmt.Printf("%s v%s\n\n", name, version)
 
 		var user string
 		fmt.Print("Enter the user: ")

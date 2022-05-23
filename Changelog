@@ -1,3 +1,8 @@
+v0.1.2
+- Parse command line arguments using Cobra
+- Add software header
+- Add visualization for cpu cores' load stats
+
 v0.1.1
 - Add device information header
 - Add uptime
