@@ -38,6 +38,20 @@ var borderedBoxStyle = lipgloss.NewStyle().
 	PaddingLeft(padding).
 	PaddingRight(padding)
 
+func createSystemRendering(m MtModel) string {
+	var systemRendering string
+	
+	systemRendering += m.deviceInfo + "\n"
+
+	for _, message := range m.data.resourceData.reply.Re {
+		systemRendering += fmt.Sprintf("uptime: %s\n", message.Map["uptime"])
+	}
+
+	x, _ := borderedBoxStyle.GetFrameSize()
+	systemRendering = borderedBoxStyle.Copy().Width(m.width-x).Render(systemRendering)
+	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("System"), systemRendering)
+}
+
 func createResourceRendering(m MtModel) string {
 	var resourceRendering string
 
@@ -49,7 +63,12 @@ func createResourceRendering(m MtModel) string {
 		))
 	} else {
 		var cpuCoreInfo string
+
+		x, _ := borderedBoxStyle.GetFrameSize()
+
 		for i := 0; i < m.cpu.count; i++ {
+			m.cpu.bar[i].Width = m.width / 2 - x
+
 			cpuCoreInfo += fmt.Sprintf("core %d: ", i+1) + 
 				m.cpu.bar[i].ViewAs(m.cpu.data[i])
 
@@ -58,25 +77,22 @@ func createResourceRendering(m MtModel) string {
 			}
 		}
 
-		resourceRendering = borderedBoxStyle.Render(cpuCoreInfo)
+		resourceRendering = borderedBoxStyle.Copy().Width(m.width / 2 - (x/2)).Render(cpuCoreInfo)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("Resources"), resourceRendering)
 }
 
 func (m MtModel) View() string {
-	var rendering string
+	var finalRendering string
 
 	if m.data == nil {
-		rendering = "Fetching data...\n"
+		finalRendering = "Fetching data...\n"
 	} else {
-		rendering += m.deviceInfo + "\n"
+		systemRendering := createSystemRendering(m)
+		resourceRendering := createResourceRendering(m)
 
-		for _, message := range m.data.resourceData.reply.Re {
-			rendering += fmt.Sprintf("uptime: %s\n", message.Map["uptime"])
-		}
-
-		rendering += createResourceRendering(m)
+		finalRendering += lipgloss.JoinVertical(lipgloss.Top, systemRendering, resourceRendering)
 	}
 
 	appStyle.Height(m.height)
@@ -85,6 +101,6 @@ func (m MtModel) View() string {
 	return appStyle.Render(fmt.Sprintf(
 		"%s\n\n" +
 		"Press q to exit...",
-		rendering,
+		finalRendering,
 	))
 }

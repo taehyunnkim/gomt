@@ -96,11 +96,16 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute runs the root command and starts the application.
 func main() {	
 	var port string
 
-	rootCmd.PersistentFlags().StringVarP(&port, "port", "p", "8728", "Path to write to file on open.")
+	rootCmd.PersistentFlags().StringVarP(
+		&port, 
+		"port", 
+		"p", 
+		strconv.Itoa(config.DefaultApiPort), 
+		"Path to write to file on open.",
+	)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

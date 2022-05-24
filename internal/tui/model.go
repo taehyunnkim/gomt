@@ -17,7 +17,7 @@ type MtModel struct {
 
 type cpuData struct {
 	count int
-	bar map[int] progress.Model
+	bar map[int] *progress.Model
 	data map[int] float64
 }
 
@@ -32,10 +32,11 @@ type data struct {
 }
 
 func New(client *routeros.Client, deviceInfo string, cpuCoreCount int) MtModel {
-	bars := make(map[int] progress.Model)
+	bars := make(map[int] *progress.Model)
 
 	for i := 0; i < cpuCoreCount; i++ {
-		bars[i] = progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"), progress.WithWidth(20))
+		bar := progress.New(progress.WithScaledGradient("#FF7CCB", "#FDFF8C"), progress.WithWidth(20))
+		bars[i] = &bar
 	}
 
 	return MtModel {
