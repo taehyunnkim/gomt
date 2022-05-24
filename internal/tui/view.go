@@ -18,7 +18,7 @@ func createSystemRendering(m MtModel) string {
 	systemRendering += fmt.Sprintf("%s: %s\n", "Uptime", m.resource.uptime)
 
 	x, _ := borderedBoxStyle.GetFrameSize()
-	systemRendering = borderedBoxStyle.Copy().Width(m.width / 2 - x).Render(systemRendering)
+	systemRendering = borderedBoxStyle.Copy().Width(m.width / 2 - (x/2)).Render(systemRendering)
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("System"), systemRendering)
 }
 
@@ -39,7 +39,7 @@ func createResourceRendering(m MtModel) string {
 		var cpuCoreInfo string
 
 		for i := 0; i < m.cpu.count; i++ {
-			m.cpu.bar[i].Width = width
+			m.cpu.bar[i].Width = width - x/2
 
 			cpuCoreInfo += fmt.Sprintf("core %d: ", i+1) + 
 				m.cpu.bar[i].ViewAs(m.cpu.data[i])
@@ -55,7 +55,7 @@ func createResourceRendering(m MtModel) string {
 		var memory string
 
 		memoryHeader := subHeaderStyle.Copy().MarginTop(1).Render("MEMORY") + "\n"
-		m.resource.memoryBar.Width = width
+		m.resource.memoryBar.Width = width - x/2
 
 		memory = fmt.Sprintf(
 			"%s / %s\n%s", 
@@ -66,7 +66,7 @@ func createResourceRendering(m MtModel) string {
 
 		memory = boxStyle.Copy().Width(width).Render(memoryHeader + memory)		
 
-		resourceRendering += borderedBoxStyle.Copy().Width(m.width / 2 - x).Render(cpuLoad + "\n" + memory)
+		resourceRendering += borderedBoxStyle.Copy().Width(width).Render(cpuLoad + "\n" + memory)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("Resources"), resourceRendering)
