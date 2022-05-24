@@ -32,17 +32,36 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 		fmt.Printf("%s v%s\n\n", name, version)
-		
-		var address string
 
-		if len(args) < 1 {
-			fmt.Print("Enter the IP Address: ")
-			fmt.Scanf("%s ", &address)
-		} else {
-			address = args[0]
+		useEnv, err := cmd.Flags().GetBool("env")
+
+		if err != nil {
+			log.Fatal(err)			
+		}
+	
+		var address string
+		if useEnv {
+			address = os.Getenv("GOMT_IP")
+		}
+		if address == "" {
+			if len(args) > 0 {
+				address = args[0]
+			} else {
+				fmt.Print("Enter the IP Address: ")
+				fmt.Scanf("%s ", &address)
+			}
 		}
 
 		port, err := cmd.Flags().GetString("port")
+
+		if useEnv {
+			p := os.Getenv("GOMT_PORT")
+
+			if p != "" {
+				port = p
+			}
+		}
+
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -54,14 +73,26 @@ var rootCmd = &cobra.Command{
 		}
 
 		var user string
-		fmt.Print("Enter the username: ")
-		fmt.Scanf("%s ", &user)
+		if useEnv {
+			user = os.Getenv("GOMT_USER")
+		}
+		if user == "" {
+			fmt.Print("Enter the username: ")
+			fmt.Scanf("%s ", &user)
+		}
 
-		fmt.Print("Enter the password: ")
-		password, _ := term.ReadPassword(int(syscall.Stdin))
-		fmt.Println()
+		var password string
+		if useEnv {
+			password = os.Getenv("GOMT_PASSWORD")
+		}
+		if password == "" {
+			fmt.Print("Enter the password: ")
+			pwd, _ := term.ReadPassword(int(syscall.Stdin))
+			password = string(pwd)
+			fmt.Println()
+		}
 
-		client, err := net.NewClientAndLogin(rwc, user, string(password))
+		client, err := net.NewClientAndLogin(rwc, user, password)
 
 		if err!= nil {
 			log.Fatal(err)
@@ -102,14 +133,18 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {	
-	var port string
-
-	rootCmd.PersistentFlags().StringVarP(
-		&port, 
+	rootCmd.PersistentFlags().StringP(
 		"port", 
 		"p", 
 		strconv.Itoa(config.DefaultApiPort), 
 		"Path to write to file on open.",
+	)
+
+	rootCmd.PersistentFlags().BoolP(
+		"env",
+		"e",
+		false,
+		"Use environment variables.\n[GOMT_IP, GOMT_PORT, GOMT_USER, GOMT_PASSWORD]",
 	)
 
 	if err := rootCmd.Execute(); err != nil {
