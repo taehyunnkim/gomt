@@ -3,8 +3,8 @@ package tui
 import (
 	"fmt"
 	"log"
-	"time"
 	"strconv"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-routeros/routeros"
@@ -15,13 +15,15 @@ func fetchData(c *routeros.Client, sub chan dataMessage) tea.Cmd {
 	return func() tea.Msg {
 		for {
 			time.Sleep(time.Second)
+
+			var reply *routeros.Reply
+			var err error
 			
-			reply, err := c.RunArgs([]string{"/system/resource/print"})
+			reply, err = c.RunArgs([]string{"/system/resource/print"})
 			resourceData := data{reply, err}
 
-			reply2, err2 := c.RunArgs([]string{"/system/resource/cpu/print"})
-			cpuData := data{reply2, err2}
-
+			reply, err = c.RunArgs([]string{"/system/resource/cpu/print"})
+			cpuData := data{reply, err}
 
 			sub <- dataMessage{
 				resourceData,
@@ -37,7 +39,43 @@ func waitForMessage(sub chan dataMessage) tea.Cmd {
 	}
 }
 
-func parseCpuData(data data, m *map[int] float64) {
+func parseResourceData(data data, m *resourceData) {
+	if data.err != nil {
+		m.err = data.err
+	}
+
+	if len(data.reply.Re) > 0 {
+		message := data.reply.Re[0]
+
+		m.uptime = message.Map["uptime"]
+
+		freeMem, err := strconv.ParseUint(message.Map["free-memory"], 10, 64)
+		if err == nil {
+			m.freeMem = freeMem
+		}
+		
+		totalMem, err := strconv.ParseUint(message.Map["total-memory"], 10, 64)
+		if err == nil {
+			m.totalMem = totalMem
+		}
+		
+		freeHdd, err := strconv.ParseUint(message.Map["free-hdd-space"], 10, 64)
+		if err == nil {
+			m.freeHdd = freeHdd
+		}
+		
+		totalHdd, err := strconv.ParseUint(message.Map["total-hdd-space"], 10, 64)
+		if err == nil {
+			m.totalHdd = totalHdd
+		}
+	}
+}
+
+func parseCpuData(data data, m *cpuData) {
+	if data.err != nil {
+		m.err = data.err
+	}
+
 	for _, message := range data.reply.Re {
 		var cpu int
 		_, err := fmt.Sscanf(message.Map[".id"], "*%d", &cpu)
@@ -47,14 +85,17 @@ func parseCpuData(data data, m *map[int] float64) {
 		}
 
 		value, _ := strconv.ParseFloat(message.Map["load"], 64)
-		(*m)[cpu] = value / 100
+		m.data[cpu] = value / 100
 	}
 }
 
 func (m MtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = message.Width
+		if message.Width > m.minWidth {
+			m.width = message.Width
+		}
+	
 		m.height = message.Height
 	case tea.KeyMsg:
 		switch message.String() {
@@ -64,8 +105,10 @@ func (m MtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case dataMessage:
-		m.data = &message
-		parseCpuData(m.data.cpuData, &m.cpu.data)
+		parseResourceData(message.resourceData, m.resource)
+		parseCpuData(message.cpuData, m.cpu)
+		m.state = ready
+
 		return m, waitForMessage(m.sub)
 	}
 

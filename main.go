@@ -22,7 +22,7 @@ var name string = `
 | (_ / _ \ |\/| | | / / '_/ _ \| | | | / /
  \___\___/_|  |_|_|_\_\_| \___/|_| |_|_\_\`
 
-var version string = "0.1.3"
+var version string = "0.1.4"
 
 var rootCmd = &cobra.Command{
 	Use:     "gomt [IP ADDRESS] [FLAGS]",
@@ -82,9 +82,14 @@ var rootCmd = &cobra.Command{
 			osVersion := reply.Re[0].Map["version"]
 			cpuCoreCount, _ := strconv.Atoi(reply.Re[0].Map["cpu-count"])
 
-			deviceInfo := fmt.Sprintf("%s %s | RouterOs %s | %s | %s\n", platform, boardName, osVersion, address, user)
+			deviceInfo := tui.DeviceInfo {
+				Platform: platform,
+				BoardName: boardName,
+				OsVersion: osVersion, 
+				CpuCoreCount: cpuCoreCount,
+			}
 
-			m := tui.New(client, deviceInfo, cpuCoreCount)
+			m := tui.New(client, deviceInfo, config.MinWindowWidth)
 			p := tea.NewProgram(m, tea.WithAltScreen())
 
 			if err := p.Start(); err != nil {
