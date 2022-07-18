@@ -39,6 +39,12 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)			
 		}
 	
+		debug, err := cmd.Flags().GetBool("debug")
+
+		if err != nil {
+			log.Fatal(err)			
+		}
+
 		var address string
 		if useEnv {
 			address = os.Getenv("GOMT_IP")
@@ -120,7 +126,7 @@ var rootCmd = &cobra.Command{
 				CpuCoreCount: cpuCoreCount,
 			}
 
-			m := tui.New(client, deviceInfo, config.MinWindowWidth)
+			m := tui.New(client, deviceInfo, debug, config.MinWindowWidth)
 			p := tea.NewProgram(m, tea.WithAltScreen())
 
 			if err := p.Start(); err != nil {
@@ -145,6 +151,13 @@ func main() {
 		"e",
 		false,
 		"Use environment variables.\n[GOMT_IP, GOMT_PORT, GOMT_USER, GOMT_PASSWORD]",
+	)
+
+	rootCmd.PersistentFlags().BoolP(
+		"debug",
+		"d",
+		false,
+		"Debug mode",
 	)
 
 	if err := rootCmd.Execute(); err != nil {

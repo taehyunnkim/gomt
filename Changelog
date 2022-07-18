@@ -3,6 +3,7 @@ v0.1.4
 - Set min width
 - Add memory information to resource tab 
 - Accept env variables
+- Fix cpu core bar gaps
 
 v0.1.3
 - Check connection before user/password prompt

@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"github.com/go-routeros/routeros"
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/go-routeros/routeros"
 )
 
 type state int
@@ -19,6 +20,9 @@ type MtModel struct {
 	sub chan dataMessage
 	resource *resourceData
 	cpu *cpuData
+	keys keyMap
+	help help.Model
+	debug bool
 	height int
 	width int
 	minWidth int
@@ -44,6 +48,7 @@ type resourceData struct {
 type cpuData struct {
 	count int
 	bar map[int] *progress.Model
+	minBarWidth int
 	data map[int] float64
 	err error
 }
@@ -58,11 +63,11 @@ type data struct {
 	err error
 }
 
-func New(client *routeros.Client, deviceInfo DeviceInfo, minWidth int) MtModel {
+func New(client *routeros.Client, deviceInfo DeviceInfo, debug bool, minWidth int) MtModel {
 	cpuBars := make(map[int] *progress.Model)
 
 	for i := 0; i < deviceInfo.CpuCoreCount; i++ {
-		bar := progress.New(progress.WithDefaultGradient())
+		bar := progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage())
 		cpuBars[i] = &bar
 	}
 
@@ -80,7 +85,11 @@ func New(client *routeros.Client, deviceInfo DeviceInfo, minWidth int) MtModel {
 			count: deviceInfo.CpuCoreCount,
 			bar: cpuBars,
 			data: make(map[int] float64),
+			minBarWidth: 26,
 		},
+		keys: keys,
+		help: help.New(),
 		minWidth: minWidth,
+		debug: debug,
 	}
 }

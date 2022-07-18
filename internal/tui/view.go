@@ -2,9 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"strings"
+	
+	"github.com/taehyunnkim/gomt/internal/math"
 
-	"github.com/charmbracelet/lipgloss"	
 	"code.cloudfoundry.org/bytefmt"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func createSystemRendering(m MtModel) string {
@@ -25,10 +28,6 @@ func createSystemRendering(m MtModel) string {
 func createResourceRendering(m MtModel) string {
 	var resourceRendering string
 
-	x, _ := borderedBoxStyle.GetFrameSize()
-
-	width := m.width / 2 - x
-
 	if m.cpu.err != nil {
 		resourceRendering = borderedBoxStyle.Render(fmt.Sprintf(
 				"A problem has occured :(\n" +
@@ -36,26 +35,64 @@ func createResourceRendering(m MtModel) string {
 				m.cpu.err,	
 		))
 	} else {
-		var cpuCoreInfo string
-
-		for i := 0; i < m.cpu.count; i++ {
-			m.cpu.bar[i].Width = width - x/2
-
-			cpuCoreInfo += fmt.Sprintf("core %d: ", i+1) + 
-				m.cpu.bar[i].ViewAs(m.cpu.data[i])
-
-			if i < m.cpu.count-1 {
-				cpuCoreInfo += "\n"
-			}
-		}
+		horizontalFrameSize := borderedBoxStyle.GetHorizontalFrameSize()
+	
+		var cpuCores string
 		
+		// Calculate Resource Window Width
+		windowWidth := m.width - horizontalFrameSize - appStyle.GetHorizontalFrameSize()
+
+
+		// Calculate number of cpu core bars in a row
+		var numBarsInRow int
+
+		if num := windowWidth / m.cpu.minBarWidth; num % 2 == 0 {
+			numBarsInRow = math.Min(m.deviceInfo.CpuCoreCount, num)
+		} else {
+			numBarsInRow = math.Min(m.deviceInfo.CpuCoreCount, num+1)
+		}
+
+		// Calculate bar width
+		// 2: core number
+		// 2: bar border
+		// 4: percentage
+		var barWidth int = windowWidth / numBarsInRow - 2 - 2 - 4
+		var remainingGap = windowWidth - (barWidth + 2 + 2 + 4) * numBarsInRow
+
+		var newLines int = 0
+		for i := 0; i < m.cpu.count; i++ {
+			var gap string
+			m.cpu.bar[i].Width = barWidth
+
+			if (i+1) % numBarsInRow == 0 {
+				gap  = "\n"
+				newLines++
+			} else {
+				var start int = numBarsInRow / 2
+				
+				if (i+1) == start + (numBarsInRow * newLines) {
+					gap = strings.Repeat(" ", remainingGap)
+				} 
+			}
+
+
+			cpuCoreInfo := fmt.Sprintf(
+				"%2d[%s]%3.0f%%%s", 
+				i+1, 
+				m.cpu.bar[i].ViewAs(m.cpu.data[i]), 
+				m.cpu.data[i]*100,
+				gap,
+			)
+
+			cpuCores += cpuCoreInfo
+		}	
+
 		cpuHeader := subHeaderStyle.Render("CPU") + "\n"
-		cpuLoad := boxStyle.Copy().Width(width).Render(cpuHeader + cpuCoreInfo)
+		cpuLoad := boxStyle.Copy().Width(windowWidth).Render(cpuHeader + cpuCores)
 
 		var memory string
-
 		memoryHeader := subHeaderStyle.Copy().MarginTop(1).Render("MEMORY") + "\n"
-		m.resource.memoryBar.Width = width - x/2
+		m.resource.memoryBar.Width = windowWidth
 
 		memory = fmt.Sprintf(
 			"%s / %s\n%s", 
@@ -64,32 +101,56 @@ func createResourceRendering(m MtModel) string {
 			m.resource.memoryBar.ViewAs(float64(m.resource.freeMem) / float64(m.resource.totalMem)),
 		)
 
-		memory = boxStyle.Copy().Width(width).Render(memoryHeader + memory)		
+		memory = boxStyle.Copy().Width(windowWidth).Render(memoryHeader + memory)		
 
-		resourceRendering += borderedBoxStyle.Copy().Width(width).Render(cpuLoad + "\n" + memory)
+		resourceRendering += borderedBoxStyle.Copy().Width(m.width - horizontalFrameSize).Render(cpuLoad + memory)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("Resources"), resourceRendering)
 }
 
 func (m MtModel) View() string {
-	var finalRendering string
+	var contentRendering string
 
 	if m.state == fetching {
-		finalRendering = "Fetching data...\n"
+		contentRendering = "Fetching data...\n"
 	} else {
 		systemRendering := createSystemRendering(m)
 		resourceRendering := createResourceRendering(m)
 
-		finalRendering += lipgloss.JoinHorizontal(lipgloss.Top, systemRendering, resourceRendering)
+		contentRendering += lipgloss.JoinVertical(lipgloss.Top, systemRendering, resourceRendering)
 	}
 
-	appStyle.Height(m.height)
+	contentRendering = contentStyle.Render(contentRendering)
+	contentHeight := strings.Count(contentRendering, "\n")
+	
 	appStyle.Width(m.width)
+	appStyle.Height(m.height)
 
-	return appStyle.Render(fmt.Sprintf(
-		"%s\n\n" +
-		"Press q to exit...",
-		finalRendering,
-	))
+
+	helpView := m.help.View(m.keys)
+	blankHeight := m.height - contentHeight - strings.Count(helpView, "\n") - 3
+
+	if blankHeight < 0 {
+		blankHeight = 1
+	}
+
+	app := fmt.Sprintf(
+		"%s%s%s",
+		contentRendering,
+		strings.Repeat("\n", blankHeight),
+		helpView,
+	)
+	
+	var debugString string
+	
+	if m.debug {
+		debugString = fmt.Sprintf(
+			"%d:%d",
+			m.cpu.bar[0].Width + 8,
+			m.width - 6,
+		)
+	}
+
+	return appStyle.Render(app + debugString)
 }

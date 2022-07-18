@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-routeros/routeros"
 )
@@ -98,8 +99,8 @@ func (m MtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	
 		m.height = message.Height
 	case tea.KeyMsg:
-		switch message.String() {
-		case "q", "ctrl+c":
+		switch {
+		case key.Matches(message, m.keys.Quit):
 			return m, tea.Quit
 		default:
 			return m, nil

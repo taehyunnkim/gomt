@@ -14,6 +14,8 @@ var appStyle = lipgloss.NewStyle().
 	PaddingLeft(padding).
 	PaddingRight(padding)
 
+var contentStyle = lipgloss.NewStyle()
+
 var boxHeaderStyle = lipgloss.NewStyle().
 	Bold(true).
 	BorderStyle(lipgloss.RoundedBorder()).
