@@ -22,7 +22,7 @@ var name string = `
 | (_ / _ \ |\/| | | / / '_/ _ \| | | | / /
  \___\___/_|  |_|_|_\_\_| \___/|_| |_|_\_\`
 
-var version string = "0.1.4"
+var version string = "0.1.5"
 
 var rootCmd = &cobra.Command{
 	Use:     "gomt [IP ADDRESS] [FLAGS]",

@@ -10,18 +10,55 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func getMaxWidth(prev int, s string) int {
+	length := len(s)
+
+	if prev < len(s) {
+		return length
+	}
+
+	return prev
+}
+
 func createSystemRendering(m MtModel) string {
 	var systemRendering string
+	boxFrame := borderedBoxStyle.GetHorizontalBorderSize() + borderedBoxStyle.GetHorizontalMargins()
+	systemRenderingWidth := m.width - appStyle.GetHorizontalFrameSize() - boxFrame
 
-	deviceHeader := subHeaderStyle.Render("Device")
-	systemRendering += fmt.Sprintf("%s\n%s %s\n", deviceHeader, m.deviceInfo.Platform, m.deviceInfo.BoardName)
+	var deviceRendering string
+	var deviceMinWidth int = 0
+	deviceRendering += fmt.Sprintf("%s\n", subHeaderStyle.Render("Device"))
+	deviceName := fmt.Sprintf("%s %s\n", m.deviceInfo.Platform, m.deviceInfo.BoardName)
+	deviceRendering += deviceName
 
-	systemRendering += fmt.Sprintf("%s: %s\n", "RouterOS", m.deviceInfo.OsVersion)
+	deviceMinWidth = getMaxWidth(deviceMinWidth, deviceName)
 
-	systemRendering += fmt.Sprintf("%s: %s\n", "Uptime", m.resource.uptime)
+	routerOs := fmt.Sprintf("%s: %s\n", "RouterOS", m.deviceInfo.OsVersion)
+	deviceRendering += routerOs
+	deviceMinWidth = getMaxWidth(deviceMinWidth, routerOs)
 
-	x, _ := borderedBoxStyle.GetFrameSize()
-	systemRendering = borderedBoxStyle.Copy().Width(m.width / 2 - (x/2)).Render(systemRendering)
+	deviceUptime := fmt.Sprintf("%s: %s\n", "Uptime", m.resource.uptime)
+	deviceRendering += deviceUptime
+	deviceMinWidth = getMaxWidth(deviceMinWidth, deviceUptime)
+
+	deviceBox := boxStyle.Copy()
+	if m.width % 2 != 0 { deviceBox.MarginRight(1) }
+	
+	var healthRendering string
+	healthRendering += fmt.Sprintf("%s\n", subHeaderStyle.Render("Health"))
+
+	if deviceMinWidth >= systemRenderingWidth/2 {
+		deviceRendering = deviceBox.Width(systemRenderingWidth).Render(deviceRendering)
+		healthRendering = boxStyle.Copy().Width(systemRenderingWidth).Render(healthRendering)
+		systemRendering = lipgloss.JoinVertical(lipgloss.Top, deviceRendering, healthRendering)
+	} else {
+		deviceRendering = deviceBox.Width(systemRenderingWidth/2).Render(deviceRendering)
+		healthRendering = boxStyle.Copy().Width(systemRenderingWidth/2).Render(healthRendering)
+		systemRendering = lipgloss.JoinHorizontal(lipgloss.Top, deviceRendering, healthRendering)
+	}
+
+	systemRendering = borderedBoxStyle.Copy().Width(systemRenderingWidth).Render(systemRendering) 
+	
 	return lipgloss.JoinVertical(lipgloss.Top, boxHeaderStyle.Render("System"), systemRendering)
 }
 
