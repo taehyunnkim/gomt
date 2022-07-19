@@ -20,6 +20,7 @@ type MtModel struct {
 	sub chan dataMessage
 	resource *resourceData
 	cpu *cpuData
+	health *healthData
 	keys keyMap
 	help help.Model
 	debug bool
@@ -53,12 +54,23 @@ type cpuData struct {
 	err error
 }
 
-type dataMessage struct {
-	resourceData data
-	cpuData data 
+type healthData struct {
+	data [10]health
+	err error
 }
 
-type data struct {
+type health struct {
+	name string
+	value string
+}
+
+type dataMessage struct {
+	resourceData routerFetchData
+	cpuData routerFetchData
+	healthData routerFetchData 
+}
+
+type routerFetchData struct {
 	reply *routeros.Reply
 	err error
 }
@@ -86,6 +98,9 @@ func New(client *routeros.Client, deviceInfo DeviceInfo, debug bool, minWidth in
 			bar: cpuBars,
 			data: make(map[int] float64),
 			minBarWidth: 26,
+		},
+		health: &healthData{
+			data: [10]health{},
 		},
 		keys: keys,
 		help: help.New(),

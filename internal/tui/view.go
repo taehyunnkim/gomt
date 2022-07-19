@@ -46,6 +46,11 @@ func createSystemRendering(m MtModel) string {
 	
 	var healthRendering string
 	healthRendering += fmt.Sprintf("%s\n", subHeaderStyle.Render("Health"))
+	for _, health := range m.health.data {
+		if health.name != "" {
+			healthRendering += fmt.Sprintf("%s: %s\n", health.name, health.value)
+		}
+	}
 
 	if deviceMinWidth >= systemRenderingWidth/2 {
 		deviceRendering = deviceBox.Width(systemRenderingWidth).Render(deviceRendering)

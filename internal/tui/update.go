@@ -21,14 +21,18 @@ func fetchData(c *routeros.Client, sub chan dataMessage) tea.Cmd {
 			var err error
 			
 			reply, err = c.RunArgs([]string{"/system/resource/print"})
-			resourceData := data{reply, err}
+			resourceData := routerFetchData{reply, err}
 
 			reply, err = c.RunArgs([]string{"/system/resource/cpu/print"})
-			cpuData := data{reply, err}
+			cpuData := routerFetchData{reply, err}
+
+			reply, err = c.RunArgs([]string{"/system/health/print"})
+			healthData := routerFetchData{reply, err}
 
 			sub <- dataMessage{
 				resourceData,
 				cpuData,
+				healthData,
 			}
 		}
 	}
@@ -40,7 +44,7 @@ func waitForMessage(sub chan dataMessage) tea.Cmd {
 	}
 }
 
-func parseResourceData(data data, m *resourceData) {
+func parseResourceData(data routerFetchData, m *resourceData) {
 	if data.err != nil {
 		m.err = data.err
 	}
@@ -72,7 +76,7 @@ func parseResourceData(data data, m *resourceData) {
 	}
 }
 
-func parseCpuData(data data, m *cpuData) {
+func parseCpuData(data routerFetchData, m *cpuData) {
 	if data.err != nil {
 		m.err = data.err
 	}
@@ -87,6 +91,20 @@ func parseCpuData(data data, m *cpuData) {
 
 		value, _ := strconv.ParseFloat(message.Map["load"], 64)
 		m.data[cpu] = value / 100
+	}
+}
+
+func parseHealthData(data routerFetchData, m *healthData) {
+	if data.err != nil {
+		m.err = data.err
+	}
+
+	for i, message := range data.reply.Re {
+		value := fmt.Sprintf("%s%s", message.Map["value"], message.Map["type"])
+		m.data[i] = health{
+			message.Map["name"],
+			value,
+		}
 	}
 }
 
@@ -108,6 +126,7 @@ func (m MtModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataMessage:
 		parseResourceData(message.resourceData, m.resource)
 		parseCpuData(message.cpuData, m.cpu)
+		parseHealthData(message.healthData, m.health)
 		m.state = ready
 
 		return m, waitForMessage(m.sub)
