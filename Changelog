@@ -1,5 +1,6 @@
 v0.1.5
 - Add health
+- Fix api service connection error message
 
 v0.1.4
 - Add subheaders to resource

@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	"github.com/daviddengcn/go-colortext"
 )
 
 var name string = `
@@ -72,11 +73,28 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		fmt.Print("Connecting to the device...")
 		rwc, err := net.Dial(address + ":" + port, config.Timeout)
 
 		if err != nil {
+			ct.Foreground(ct.Red, true)
 			log.Fatal(err)	
+			ct.ResetColor()
 		}
+
+		routerosClient, err := net.NewRouterOsClient(rwc)
+
+		if err != nil {
+			ct.Foreground(ct.Red, true)
+			log.Fatal(err)
+			ct.ResetColor()
+		}
+
+		ct.Foreground(ct.Green, true)
+		fmt.Println("Connected!")
+		ct.ResetColor()
+		
+		defer routerosClient.Close()
 
 		var user string
 		if useEnv {
@@ -95,19 +113,21 @@ var rootCmd = &cobra.Command{
 			fmt.Print("Enter the password: ")
 			pwd, _ := term.ReadPassword(int(syscall.Stdin))
 			password = string(pwd)
-			fmt.Println()
 		}
 
-		client, err := net.NewClientAndLogin(rwc, user, password)
-
+		err = net.Login(routerosClient, user, password)
 		if err!= nil {
-			log.Fatal(err)
+			ct.Foreground(ct.Red, true)
+			log.Fatalf("\n%s", err)
+			ct.ResetColor()
 			return
 		}
+		
+		ct.Foreground(ct.Green, true)
+		fmt.Printf("\nSuccessfully logged in as %s!\n", user)
+		ct.ResetColor()
 
-		defer client.Close()
-
-		reply, err := client.RunArgs([]string{"/system/resource/print"})
+		reply, err := routerosClient.RunArgs([]string{"/system/resource/print"})
 
 		if err != nil {
 			log.Fatal(err)
@@ -126,7 +146,7 @@ var rootCmd = &cobra.Command{
 				CpuCoreCount: cpuCoreCount,
 			}
 
-			m := tui.New(client, deviceInfo, debug, config.MinWindowWidth)
+			m := tui.New(routerosClient, deviceInfo, debug, config.MinWindowWidth)
 			p := tea.NewProgram(m, tea.WithAltScreen())
 
 			if err := p.Start(); err != nil {
