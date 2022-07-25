@@ -73,21 +73,17 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		fmt.Print("Connecting to the device...")
+		fmt.Print("Connecting to the device... ")
 		rwc, err := net.Dial(address + ":" + port, config.Timeout)
 
 		if err != nil {
-			ct.Foreground(ct.Red, true)
 			log.Fatal(err)	
-			ct.ResetColor()
 		}
 
 		routerosClient, err := net.NewRouterOsClient(rwc)
 
 		if err != nil {
-			ct.Foreground(ct.Red, true)
 			log.Fatal(err)
-			ct.ResetColor()
 		}
 
 		ct.Foreground(ct.Green, true)
@@ -117,10 +113,7 @@ var rootCmd = &cobra.Command{
 
 		err = net.Login(routerosClient, user, password)
 		if err!= nil {
-			ct.Foreground(ct.Red, true)
 			log.Fatalf("\n%s", err)
-			ct.ResetColor()
-			return
 		}
 		
 		ct.Foreground(ct.Green, true)
